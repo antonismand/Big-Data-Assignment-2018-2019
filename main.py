@@ -10,16 +10,19 @@ df = pd.read_csv(filename, sep='\t')
 
 print("There are {} observations and {} features in this dataset. \n".format(df.shape[0], df.shape[1]))
 
-categories = df.Category.unique()
-category = df.groupby("Category")
-
-text = " ".join(article for article in df.Content)
 stopwords = set(STOPWORDS)
+stopwords.update(["said", "will", "say", "one", "now", "says", "time", "new", "first"])
+categories = df.Category.unique()
+for category in categories:
+    cat = df.loc[df['Category'] == category]
 
-# Create and generate a word cloud image:
-wordcloud = WordCloud(stopwords=stopwords).generate(text)
+    text = " ".join(article for article in cat.Content)
 
-# Display the generated image:
-plt.imshow(wordcloud, interpolation='bilinear')
-plt.axis("off")
-plt.show()
+    # Create and generate a word cloud image:
+    wordcloud = WordCloud(stopwords=stopwords).generate(text)
+
+    # Display the generated image:
+    plt.imshow(wordcloud, interpolation='bilinear')
+    plt.axis("off")
+    plt.title(category)
+    plt.show()
