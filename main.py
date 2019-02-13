@@ -61,9 +61,9 @@ def duplicates(similarity):
     dups = dups.sort_index()
     dups["Document_ID1"] = dups["Document_ID1"].astype(int)
     dups["Document_ID2"] = dups["Document_ID2"].astype(int)
-    dups.to_csv(path.join("data", "duplicatePairs.csv"), sep='\t', index=False)
+    dups.to_csv(path.join("data", "duplicatePairs.csv"), index=False)
     print(dups.shape[0], "duplicates found.")
 
 
-# duplicates(0.7)
+duplicates(0.7)
 # wordclouds()
