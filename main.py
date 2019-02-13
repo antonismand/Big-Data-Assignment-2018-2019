@@ -40,6 +40,7 @@ def duplicates(similarity):
     # Create the Dictionary and Corpus
     mydict = corpora.Dictionary([simple_preprocess(line) for line in df.Content])
     corpus = [mydict.doc2bow(simple_preprocess(line)) for line in df.Content]
+    print(mydict)
 
     # Create the TF-IDF model
     tfidf = TfidfModel(corpus)
@@ -47,16 +48,22 @@ def duplicates(similarity):
     index_temp = get_tmpfile("index")
     index = gensim.similarities.Similarity(index_temp, tfidf[corpus], num_features=len(mydict))
 
-    count = 0
-    dups = []
+    dups = pd.DataFrame(columns=['Document_ID1', 'Document_ID2', 'Similarity'])
+
     for idx1, sims in enumerate(index):
         for idx2, val in enumerate(sims):
-            if val > similarity and idx1 != idx2 and (idx2, idx1) not in dups:
-                count += 1
-                dups.append((idx1, idx2))
-                print(round(idx1 / 122.66), '%', df.iloc[idx1, 2], "||", df.iloc[idx2, 2], val)
+            if val > similarity and idx1 < idx2:
+                # print(round(idx1 / 122.66), '%', df.iloc[idx1, 2], "||", df.iloc[idx2, 2], val)
+                print(round(idx1 / 122.66), '%')
+                dups.loc[-1] = [df.iloc[idx1, 1], df.iloc[idx2, 1], val]
+                dups.index = dups.index + 1
 
-    print(count)
+    dups = dups.sort_index()
+    dups["Document_ID1"] = dups["Document_ID1"].astype(int)
+    dups["Document_ID2"] = dups["Document_ID2"].astype(int)
+    dups.to_csv(path.join("data", "duplicatePairs.csv"), sep='\t', index=False)
+    print(dups.shape[0], "duplicates found.")
 
 
-duplicates(0.7)
+# duplicates(0.7)
+# wordclouds()
