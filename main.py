@@ -10,6 +10,7 @@ from os import path
 from wordcloud import WordCloud, STOPWORDS
 import matplotlib.pyplot as plt
 from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import KFold
 from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
 from sklearn.metrics import classification_report, accuracy_score, precision_score, recall_score, f1_score, \
@@ -67,7 +68,7 @@ def duplicates(similarity):
     dups = dups.sort_index()
     dups["Document_ID1"] = dups["Document_ID1"].astype(int)
     dups["Document_ID2"] = dups["Document_ID2"].astype(int)
-    dups.to_csv(path.join("data", "duplicatePairs.csv"), index=False) # TODO paradoteo sep = tab
+    dups.to_csv(path.join("data", "duplicatePairs.csv"), index=False)  # TODO paradoteo sep = tab
     print(dups.shape[0], "duplicates found.")
 
 
@@ -81,7 +82,7 @@ def get_scores(true_labels, predicted_labels, scores):
     return scores
 
 
-def svm_bow(full=True):  # boolean full : to use the whole dataset or first 1000 observations
+def bow(classifier, full=True):  # boolean full : to use the whole dataset or first 1000 observations
     kf = KFold(n_splits=10)
 
     count_vect = CountVectorizer(stop_words=ENGLISH_STOP_WORDS)
@@ -99,7 +100,7 @@ def svm_bow(full=True):  # boolean full : to use the whole dataset or first 1000
         y_train = np.array(y)[train_index]
         y_test = np.array(y)[test_index]
 
-        clf = svm.SVC(kernel='linear')
+        clf = svm.SVC(kernel='linear') if classifier == 'SVM(BoW)' else RandomForestClassifier()
         clf.fit(X_train, y_train)
 
         y_pred = clf.predict(X_test)
@@ -108,13 +109,14 @@ def svm_bow(full=True):  # boolean full : to use the whole dataset or first 1000
         print(i, '/', 10)
 
     scores = {k: v / 10 for k, v in scores.items()}
-    return scores
+    return {'Statistic Measure': classifier, **scores}
 
 
 # wordclouds()
 # duplicates(0.7)
 results = pd.DataFrame(columns=['Statistic Measure', 'Accuracy', 'Precision', 'Recall', 'F-Measure', 'AUC'])
-results = results.append({'Statistic Measure': 'SVM(BoW)', **svm_bow(False)}, ignore_index=True)
+results = results.append(bow('SVM(BoW)', False), ignore_index=True)
+results = results.append(bow('Random Forest(BoW)', False), ignore_index=True)
 results = results.T
 
-# TODO 'Random Forest (BoW)', 'SVM(SVD)' ,'Random Forest(SVD)','SVM(W2V)','Random Forest (W2V)','My Method'
+# TODO 'SVM(SVD)' ,'Random Forest(SVD)','SVM(W2V)','Random Forest (W2V)','My Method'
