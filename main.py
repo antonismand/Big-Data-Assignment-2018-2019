@@ -13,10 +13,11 @@ from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import KFold
 from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
-from sklearn.metrics import classification_report, accuracy_score, precision_score, recall_score, f1_score, \
-    roc_auc_score
-
+from sklearn.metrics import classification_report, accuracy_score, precision_score, recall_score, f1_score
+from sklearn.decomposition import TruncatedSVD
+from sklearn.pipeline import Pipeline
 from sklearn import svm
+from gensim.sklearn_api import W2VTransformer
 
 df = pd.read_csv(path.join("data", "train_set.csv"), sep='\t')
 df_test = pd.read_csv(path.join("data", "test_set.csv"), sep='\t')
@@ -77,46 +78,64 @@ def get_scores(true_labels, predicted_labels, scores):
     scores['Precision'] += precision_score(true_labels, predicted_labels, average='weighted')
     scores['Recall'] += recall_score(true_labels, predicted_labels, average='weighted')
     scores['F-Measure'] += f1_score(true_labels, predicted_labels, average='weighted')
-    # scores['auc'] += roc_auc_score(y_test, y_pred, average='weighted')
 
     return scores
 
 
-def bow(classifier, full=True):  # boolean full : to use the whole dataset or first 1000 observations
+def classify(classifier, method, full=True):  # boolean full : to use the whole dataset or first 1000 observations
     kf = KFold(n_splits=10)
 
-    count_vect = CountVectorizer(stop_words=ENGLISH_STOP_WORDS)
     X = df.Content if full else df.Content[0:1000]
-    y = df.Content if full else df.Category[0:1000]
-    count_vect.fit(X)
+    y = df.Category if full else df.Category[0:1000]
 
-    scores = {'Accuracy': 0, 'Precision': 0, 'Recall': 0, 'F-Measure': 0, 'AUC': 0}
+    scores = {'Accuracy': 0, 'Precision': 0, 'Recall': 0, 'F-Measure': 0}
     i = 0
+
+    pipe = []
+    if method == 'W2V':
+        pipe.append(('w2v', W2VTransformer()))
+    else:
+        pipe = [('vect', CountVectorizer(stop_words='english'))]
+
+    if method == 'SVD':
+        pipe.append(('svd', TruncatedSVD(n_components=5, n_iter=7, random_state=42)))
+
+    if classifier == "SVM":
+        pipe.append(('clf', svm.SVC(kernel='linear')))
+    else:
+        pipe.append(('clf', RandomForestClassifier()))
+
+    print(pipe)
     for train_index, test_index in kf.split(X):
         i += 1
-        X_train = count_vect.transform(np.array(X)[train_index])
-        X_test = count_vect.transform(np.array(X)[test_index])
+        X_train = np.array(X)[train_index]
+        X_test = np.array(X)[test_index]
 
         y_train = np.array(y)[train_index]
         y_test = np.array(y)[test_index]
 
-        clf = svm.SVC(kernel='linear') if classifier == 'SVM(BoW)' else RandomForestClassifier()
+        clf = Pipeline(pipe)
         clf.fit(X_train, y_train)
 
         y_pred = clf.predict(X_test)
-        # print(classification_report(y_test, y_pred))
+        print(classification_report(y_test, y_pred))
         scores = get_scores(y_test, y_pred, scores)
         print(i, '/', 10)
 
     scores = {k: v / 10 for k, v in scores.items()}
-    return {'Statistic Measure': classifier, **scores}
+    return {'Statistic Measure': classifier + '(' + method + ')', **scores}
 
 
 # wordclouds()
 # duplicates(0.7)
-results = pd.DataFrame(columns=['Statistic Measure', 'Accuracy', 'Precision', 'Recall', 'F-Measure', 'AUC'])
-results = results.append(bow('SVM(BoW)', False), ignore_index=True)
-results = results.append(bow('Random Forest(BoW)', False), ignore_index=True)
+results = pd.DataFrame(columns=['Statistic Measure', 'Accuracy', 'Precision', 'Recall', 'F-Measure'])
+#
+results = results.append(classify('SVM', 'BoW', False), ignore_index=True)
+results = results.append(classify('Random Forest', 'BoW', False), ignore_index=True)
+results = results.append(classify('SVM', 'SVD', False), ignore_index=True)
+results = results.append(classify('Random Forest', 'SVD', False), ignore_index=True)
+# results = results.append(classify('SVM', 'W2V', False), ignore_index=True)
+# results = results.append(classify('Random Forest', 'W2V', False), ignore_index=True)
 results = results.T
 
-# TODO 'SVM(SVD)' ,'Random Forest(SVD)','SVM(W2V)','Random Forest (W2V)','My Method'
+# TODO My Method
