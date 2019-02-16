@@ -84,7 +84,7 @@ def get_scores(true_labels, predicted_labels, scores):
     return scores
 
 
-def createPipeline(classifier, method):
+def get_pipeline(classifier, method):
     pipe = []
     if method == 'W2V':
         pipe.append(('vect', D2VTransformer(min_count=5)))
@@ -117,7 +117,7 @@ def classify(classifier, method, full=True):  # boolean full : to use the whole 
     if method == 'W2V':
         X = [simple_preprocess(line) for line in X]
 
-    clf = createPipeline(classifier, method)
+    clf = get_pipeline(classifier, method)
     for train_index, test_index in kf.split(X):
         i += 1
         X_train = np.array(X)[train_index]
@@ -130,14 +130,14 @@ def classify(classifier, method, full=True):  # boolean full : to use the whole 
         y_pred = clf.predict(X_test)
         print(classification_report(y_test, y_pred))
         scores = get_scores(y_test, y_pred, scores)
-        print(i, '/', 10)
+        print(classifier, method, i, '/', 10)
 
     scores = [x / 10 for x in scores]
     return pd.DataFrame({classifier + '(' + method + ')': scores})
 
 
 def predict_categories():
-    clf = createPipeline('SVM', 'TF-IDF')
+    clf = get_pipeline('SVM', 'TF-IDF')
     clf.fit(df.Content, df.Category)
     y_pred = clf.predict(df_test.Content)
     return pd.DataFrame({'Test_Document_ID': df_test.Id, 'Predicted_Category': y_pred})
@@ -156,13 +156,12 @@ results = results.join(classify('SVM', 'W2V', full_dataset))
 results = results.join(classify('Random Forest', 'W2V', full_dataset))
 
 results = results.join(classify('SVM', 'TF-IDF', full_dataset))  # My Method
-results = results.join(classify('Naive Bayes', 'TF-IDF', full_dataset)) # My Method
-results = results.join(classify('Naive Bayes', 'BoW', full_dataset)) # My Method
-
+results = results.join(classify('Naive Bayes', 'TF-IDF', full_dataset))  # My Method
+results = results.join(classify('Naive Bayes', 'BoW', full_dataset))  # My Method
 
 # results.to_csv(path.join("data", "EvaluationMetric_10fold_comma.csv"), index=full_dataset)
 # results.to_csv(path.join("data", "EvaluationMetric_10fold.csv"), index=False, sep='\t')
 
-predictions = predict_categories()
+# predictions = predict_categories()
 # predictions.to_csv(path.join("data", "testSet_categories_comma.csv"), index=False)
 # predictions.to_csv(path.join("data", "testSet_categories.csv"), index=False, sep='\t')
