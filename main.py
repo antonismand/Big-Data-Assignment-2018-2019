@@ -12,12 +12,15 @@ import matplotlib.pyplot as plt
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import KFold
-from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
+# from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
 from sklearn.metrics import classification_report, accuracy_score, precision_score, recall_score, f1_score
 from sklearn.decomposition import TruncatedSVD
 from sklearn.pipeline import Pipeline
 from sklearn import svm
-from gensim.sklearn_api import W2VTransformer
+# from gensim.sklearn_api import W2VTransformer
+from gensim.sklearn_api import D2VTransformer
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.feature_extraction.text import TfidfVectorizer
 
 df = pd.read_csv(path.join("data", "train_set.csv"), sep='\t')
 df_test = pd.read_csv(path.join("data", "test_set.csv"), sep='\t')
@@ -85,27 +88,33 @@ def get_scores(true_labels, predicted_labels, scores):
 def classify(classifier, method, full=True):  # boolean full : to use the whole dataset or first 1000 observations
     kf = KFold(n_splits=10)
 
-    X = df.Content if full else df.Content[0:1000]
-    y = df.Category if full else df.Category[0:1000]
+    X = df.Content if full else df.Content[0:2000]
+    y = df.Category if full else df.Category[0:2000]
 
     scores = {'Accuracy': 0, 'Precision': 0, 'Recall': 0, 'F-Measure': 0}
     i = 0
 
     pipe = []
     if method == 'W2V':
-        pipe.append(('w2v', W2VTransformer()))
-    else:
-        pipe = [('vect', CountVectorizer(stop_words='english'))]
-
-    if method == 'SVD':
+        X = [simple_preprocess(line) for line in X]
+        pipe.append(('vect', D2VTransformer(min_count=5)))
+    elif method == 'BoW':
+        pipe.append(('vect', CountVectorizer(stop_words='english')))
+    elif method == 'SVD':
+        pipe.append(('vect', CountVectorizer(stop_words='english')))
         pipe.append(('svd', TruncatedSVD(n_components=5, n_iter=7, random_state=42)))
+    else:
+        pipe.append(('tfidf', TfidfVectorizer(stop_words='english')))
 
     if classifier == "SVM":
         pipe.append(('clf', svm.SVC(kernel='linear')))
-    else:
+    elif classifier == "Random Forest":
         pipe.append(('clf', RandomForestClassifier()))
+    else:
+        pipe.append(('clf', MultinomialNB()))
 
-    print(pipe)
+    clf = Pipeline(pipe)
+    # print(pipe)
     for train_index, test_index in kf.split(X):
         i += 1
         X_train = np.array(X)[train_index]
@@ -114,9 +123,7 @@ def classify(classifier, method, full=True):  # boolean full : to use the whole 
         y_train = np.array(y)[train_index]
         y_test = np.array(y)[test_index]
 
-        clf = Pipeline(pipe)
         clf.fit(X_train, y_train)
-
         y_pred = clf.predict(X_test)
         print(classification_report(y_test, y_pred))
         scores = get_scores(y_test, y_pred, scores)
@@ -129,13 +136,14 @@ def classify(classifier, method, full=True):  # boolean full : to use the whole 
 # wordclouds()
 # duplicates(0.7)
 results = pd.DataFrame(columns=['Statistic Measure', 'Accuracy', 'Precision', 'Recall', 'F-Measure'])
-#
 results = results.append(classify('SVM', 'BoW', False), ignore_index=True)
 results = results.append(classify('Random Forest', 'BoW', False), ignore_index=True)
 results = results.append(classify('SVM', 'SVD', False), ignore_index=True)
 results = results.append(classify('Random Forest', 'SVD', False), ignore_index=True)
-# results = results.append(classify('SVM', 'W2V', False), ignore_index=True)
-# results = results.append(classify('Random Forest', 'W2V', False), ignore_index=True)
+results = results.append(classify('SVM', 'W2V', False), ignore_index=True)
+results = results.append(classify('Random Forest', 'W2V', False), ignore_index=True)
+
+results = results.append(classify('SVM', 'TF-IDF', False), ignore_index=True) # My Method
 results = results.T
 
-# TODO My Method
+
