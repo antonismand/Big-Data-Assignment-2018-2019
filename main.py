@@ -77,10 +77,10 @@ def duplicates(similarity):
 
 
 def get_scores(true_labels, predicted_labels, scores):
-    scores['Accuracy'] += accuracy_score(true_labels, predicted_labels)
-    scores['Precision'] += precision_score(true_labels, predicted_labels, average='weighted')
-    scores['Recall'] += recall_score(true_labels, predicted_labels, average='weighted')
-    scores['F-Measure'] += f1_score(true_labels, predicted_labels, average='weighted')
+    scores[0] += accuracy_score(true_labels, predicted_labels)
+    scores[1] += precision_score(true_labels, predicted_labels, average='micro')
+    scores[2] += recall_score(true_labels, predicted_labels, average='micro')
+    scores[3] += f1_score(true_labels, predicted_labels, average='micro')
 
     return scores
 
@@ -91,7 +91,7 @@ def classify(classifier, method, full=True):  # boolean full : to use the whole 
     X = df.Content if full else df.Content[0:2000]
     y = df.Category if full else df.Category[0:2000]
 
-    scores = {'Accuracy': 0, 'Precision': 0, 'Recall': 0, 'F-Measure': 0}
+    scores = [0, 0, 0, 0]
     i = 0
 
     pipe = []
@@ -102,14 +102,14 @@ def classify(classifier, method, full=True):  # boolean full : to use the whole 
         pipe.append(('vect', CountVectorizer(stop_words='english')))
     elif method == 'SVD':
         pipe.append(('vect', CountVectorizer(stop_words='english')))
-        pipe.append(('svd', TruncatedSVD(n_components=5, n_iter=7, random_state=42)))
+        pipe.append(('svd', TruncatedSVD(n_components=50)))
     else:
         pipe.append(('tfidf', TfidfVectorizer(stop_words='english')))
 
     if classifier == "SVM":
         pipe.append(('clf', svm.SVC(kernel='linear')))
     elif classifier == "Random Forest":
-        pipe.append(('clf', RandomForestClassifier()))
+        pipe.append(('clf', RandomForestClassifier(n_estimators=100)))
     else:
         pipe.append(('clf', MultinomialNB()))
 
@@ -129,21 +129,25 @@ def classify(classifier, method, full=True):  # boolean full : to use the whole 
         scores = get_scores(y_test, y_pred, scores)
         print(i, '/', 10)
 
-    scores = {k: v / 10 for k, v in scores.items()}
-    return {'Statistic Measure': classifier + '(' + method + ')', **scores}
+    scores = [x / 10 for x in scores]
+    return pd.DataFrame({classifier + '(' + method + ')': scores})
 
 
 # wordclouds()
 # duplicates(0.7)
-results = pd.DataFrame(columns=['Statistic Measure', 'Accuracy', 'Precision', 'Recall', 'F-Measure'])
-results = results.append(classify('SVM', 'BoW', False), ignore_index=True)
-results = results.append(classify('Random Forest', 'BoW', False), ignore_index=True)
-results = results.append(classify('SVM', 'SVD', False), ignore_index=True)
-results = results.append(classify('Random Forest', 'SVD', False), ignore_index=True)
-results = results.append(classify('SVM', 'W2V', False), ignore_index=True)
-results = results.append(classify('Random Forest', 'W2V', False), ignore_index=True)
+results = pd.DataFrame({'Statistic Measure': ['Accuracy', 'Precision', 'Recall', 'F-Measure']})
 
-results = results.append(classify('SVM', 'TF-IDF', False), ignore_index=True) # My Method
-results = results.T
+results = results.join(classify('SVM', 'BoW', True))
+results = results.join(classify('Random Forest', 'BoW', True))
+results = results.join(classify('SVM', 'SVD', True))
+results = results.join(classify('Random Forest', 'SVD', True))
+results = results.join(classify('SVM', 'W2V', True))
+results = results.join(classify('Random Forest', 'W2V', True))
+
+results = results.join(classify('SVM', 'TF-IDF', True))  # My Method
+# results = results.join(classify('Naive Bayes', 'TF-IDF', False)) # My Method
+# results = results.join(classify('Naive Bayes', 'BoW', True)) # My Method
 
 
+results.to_csv(path.join("data", "EvaluationMetric_10fold_comma.csv"), index=False)
+results.to_csv(path.join("data", "EvaluationMetric_10fold.csv"), index=False, sep='\t')
