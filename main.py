@@ -2,7 +2,7 @@ import numpy as np
 import gensim
 from gensim import corpora
 from gensim.utils import simple_preprocess
-from gensim.test.utils import datapath, get_tmpfile
+from gensim.test.utils import get_tmpfile
 
 from gensim.models import TfidfModel
 import pandas as pd
@@ -81,22 +81,12 @@ def get_scores(true_labels, predicted_labels, scores):
     scores[1] += precision_score(true_labels, predicted_labels, average='micro')
     scores[2] += recall_score(true_labels, predicted_labels, average='micro')
     scores[3] += f1_score(true_labels, predicted_labels, average='micro')
-
     return scores
 
 
-def classify(classifier, method, full=True):  # boolean full : to use the whole dataset or first 1000 observations
-    kf = KFold(n_splits=10)
-
-    X = df.Content if full else df.Content[0:2000]
-    y = df.Category if full else df.Category[0:2000]
-
-    scores = [0, 0, 0, 0]
-    i = 0
-
+def createPipeline(classifier, method):
     pipe = []
     if method == 'W2V':
-        X = [simple_preprocess(line) for line in X]
         pipe.append(('vect', D2VTransformer(min_count=5)))
     elif method == 'BoW':
         pipe.append(('vect', CountVectorizer(stop_words='english')))
@@ -112,9 +102,22 @@ def classify(classifier, method, full=True):  # boolean full : to use the whole 
         pipe.append(('clf', RandomForestClassifier(n_estimators=100)))
     else:
         pipe.append(('clf', MultinomialNB()))
+    return Pipeline(pipe)
 
-    clf = Pipeline(pipe)
-    # print(pipe)
+
+def classify(classifier, method, full=True):  # boolean full : to use the whole dataset or first 1000 observations
+    kf = KFold(n_splits=10)
+
+    X = df.Content if full else df.Content[0:2000]
+    y = df.Category if full else df.Category[0:2000]
+
+    scores = [0, 0, 0, 0]
+    i = 0
+
+    if method == 'W2V':
+        X = [simple_preprocess(line) for line in X]
+
+    clf = createPipeline(classifier, method)
     for train_index, test_index in kf.split(X):
         i += 1
         X_train = np.array(X)[train_index]
@@ -133,21 +136,33 @@ def classify(classifier, method, full=True):  # boolean full : to use the whole 
     return pd.DataFrame({classifier + '(' + method + ')': scores})
 
 
+def predict_categories():
+    clf = createPipeline('SVM', 'TF-IDF')
+    clf.fit(df.Content, df.Category)
+    y_pred = clf.predict(df_test.Content)
+    return pd.DataFrame({'Test_Document_ID': df_test.Id, 'Predicted_Category': y_pred})
+
+
 # wordclouds()
 # duplicates(0.7)
 results = pd.DataFrame({'Statistic Measure': ['Accuracy', 'Precision', 'Recall', 'F-Measure']})
 
-results = results.join(classify('SVM', 'BoW', True))
-results = results.join(classify('Random Forest', 'BoW', True))
-results = results.join(classify('SVM', 'SVD', True))
-results = results.join(classify('Random Forest', 'SVD', True))
-results = results.join(classify('SVM', 'W2V', True))
-results = results.join(classify('Random Forest', 'W2V', True))
+full_dataset = False
+results = results.join(classify('SVM', 'BoW', full_dataset))
+results = results.join(classify('Random Forest', 'BoW', full_dataset))
+results = results.join(classify('SVM', 'SVD', full_dataset))
+results = results.join(classify('Random Forest', 'SVD', full_dataset))
+results = results.join(classify('SVM', 'W2V', full_dataset))
+results = results.join(classify('Random Forest', 'W2V', full_dataset))
 
-results = results.join(classify('SVM', 'TF-IDF', True))  # My Method
-# results = results.join(classify('Naive Bayes', 'TF-IDF', False)) # My Method
-# results = results.join(classify('Naive Bayes', 'BoW', True)) # My Method
+results = results.join(classify('SVM', 'TF-IDF', full_dataset))  # My Method
+results = results.join(classify('Naive Bayes', 'TF-IDF', full_dataset)) # My Method
+results = results.join(classify('Naive Bayes', 'BoW', full_dataset)) # My Method
 
 
-results.to_csv(path.join("data", "EvaluationMetric_10fold_comma.csv"), index=False)
-results.to_csv(path.join("data", "EvaluationMetric_10fold.csv"), index=False, sep='\t')
+# results.to_csv(path.join("data", "EvaluationMetric_10fold_comma.csv"), index=full_dataset)
+# results.to_csv(path.join("data", "EvaluationMetric_10fold.csv"), index=False, sep='\t')
+
+predictions = predict_categories()
+# predictions.to_csv(path.join("data", "testSet_categories_comma.csv"), index=False)
+# predictions.to_csv(path.join("data", "testSet_categories.csv"), index=False, sep='\t')
