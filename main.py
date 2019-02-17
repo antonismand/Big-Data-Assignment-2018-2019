@@ -12,15 +12,16 @@ import matplotlib.pyplot as plt
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import KFold
-# from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
 from sklearn.metrics import classification_report, accuracy_score, precision_score, recall_score, f1_score
 from sklearn.decomposition import TruncatedSVD
 from sklearn.pipeline import Pipeline
 from sklearn import svm
-# from gensim.sklearn_api import W2VTransformer
 from gensim.sklearn_api import D2VTransformer
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.model_selection import GridSearchCV
+from gridsearch_plot import GridSearch_table_plot
+import time, string
 
 df = pd.read_csv(path.join("data", "train_set.csv"), sep='\t')
 df_test = pd.read_csv(path.join("data", "test_set.csv"), sep='\t')
@@ -72,36 +73,37 @@ def duplicates(similarity):
     dups = dups.sort_index()
     dups["Document_ID1"] = dups["Document_ID1"].astype(int)
     dups["Document_ID2"] = dups["Document_ID2"].astype(int)
-    dups.to_csv(path.join("data", "duplicatePairs.csv"), index=False)  # TODO paradoteo sep = tab
+    dups.to_csv(path.join("data", "duplicatePairs.csv"), sep='\t', index=False)
+    dups.to_csv(path.join("data", "duplicatePairs_comma.csv"), index=False)
     print(dups.shape[0], "duplicates found.")
 
 
 def get_scores(true_labels, predicted_labels, scores):
     scores[0] += accuracy_score(true_labels, predicted_labels)
-    scores[1] += precision_score(true_labels, predicted_labels, average='micro')
-    scores[2] += recall_score(true_labels, predicted_labels, average='micro')
-    scores[3] += f1_score(true_labels, predicted_labels, average='micro')
+    scores[1] += precision_score(true_labels, predicted_labels, average='macro')
+    scores[2] += recall_score(true_labels, predicted_labels, average='macro')
+    scores[3] += f1_score(true_labels, predicted_labels, average='macro')
     return scores
 
 
 def get_pipeline(classifier, method):
     pipe = []
-    if method == 'W2V':
-        pipe.append(('vect', D2VTransformer(min_count=5)))
+    if method == 'D2V':
+        pipe.append(('d2v', D2VTransformer()))
     elif method == 'BoW':
-        pipe.append(('vect', CountVectorizer(stop_words='english')))
+        pipe.append(('bow', CountVectorizer(stop_words='english')))
     elif method == 'SVD':
-        pipe.append(('vect', CountVectorizer(stop_words='english')))
-        pipe.append(('svd', TruncatedSVD(n_components=50)))
+        pipe.append(('bow', CountVectorizer(stop_words='english')))
+        pipe.append(('svd', TruncatedSVD(n_components=150)))
     else:
-        pipe.append(('tfidf', TfidfVectorizer(stop_words='english')))
+        pipe.append(('tfidf', TfidfVectorizer()))
 
     if classifier == "SVM":
-        pipe.append(('clf', svm.SVC(kernel='linear')))
+        pipe.append(('svm', svm.SVC(kernel='linear')))
     elif classifier == "Random Forest":
-        pipe.append(('clf', RandomForestClassifier(n_estimators=100)))
+        pipe.append(('random_forest', RandomForestClassifier(n_estimators=200)))
     else:
-        pipe.append(('clf', MultinomialNB()))
+        pipe.append(('naive_bayes', MultinomialNB()))
     return Pipeline(pipe)
 
 
@@ -114,8 +116,13 @@ def classify(classifier, method, full=True):  # boolean full : to use the whole 
     scores = [0, 0, 0, 0]
     i = 0
 
-    if method == 'W2V':
+    start = time.time()
+    if method == 'D2V':
         X = [simple_preprocess(line) for line in X]
+    # if method == 'TF-IDF':
+        # X = [s.translate(None, string.punctuation) for s in X]
+        # for x in X:
+        #     print(x)
 
     clf = get_pipeline(classifier, method)
     for train_index, test_index in kf.split(X):
@@ -127,13 +134,32 @@ def classify(classifier, method, full=True):  # boolean full : to use the whole 
         y_test = np.array(y)[test_index]
 
         clf.fit(X_train, y_train)
+
         y_pred = clf.predict(X_test)
+
         print(classification_report(y_test, y_pred))
         scores = get_scores(y_test, y_pred, scores)
         print(classifier, method, i, '/', 10)
 
     scores = [x / 10 for x in scores]
+    end = time.time()
+    print(end - start)
+    # scores.append(end - start)
     return pd.DataFrame({classifier + '(' + method + ')': scores})
+
+
+def fine_tune(classifier, method, param_grid):
+    X = df.Content[0:2000]
+    y = df.Category[0:2000]
+
+    if method == 'D2V':
+        X = [simple_preprocess(line) for line in X]
+
+    clf = get_pipeline(classifier, method)
+    search = GridSearchCV(clf, param_grid=param_grid, cv=10)
+    search.fit(X, y)
+    for param in param_grid:
+        GridSearch_table_plot(search, param, display_all_params=False)
 
 
 def predict_categories():
@@ -147,21 +173,33 @@ def predict_categories():
 # duplicates(0.7)
 results = pd.DataFrame({'Statistic Measure': ['Accuracy', 'Precision', 'Recall', 'F-Measure']})
 
-full_dataset = False
-results = results.join(classify('SVM', 'BoW', full_dataset))
-results = results.join(classify('Random Forest', 'BoW', full_dataset))
-results = results.join(classify('SVM', 'SVD', full_dataset))
-results = results.join(classify('Random Forest', 'SVD', full_dataset))
-results = results.join(classify('SVM', 'W2V', full_dataset))
-results = results.join(classify('Random Forest', 'W2V', full_dataset))
-
+full_dataset = True
+# results = results.join(classify('SVM', 'BoW', full_dataset))
+# results = results.join(classify('Random Forest', 'BoW', full_dataset))
+# results = results.join(classify('SVM', 'SVD', full_dataset))
+# results = results.join(classify('Random Forest', 'SVD', full_dataset))
+# results = results.join(classify('SVM', 'D2V', full_dataset))
+# results = results.join(classify('Random Forest', 'D2V', full_dataset))
+# #
 results = results.join(classify('SVM', 'TF-IDF', full_dataset))  # My Method
-results = results.join(classify('Naive Bayes', 'TF-IDF', full_dataset))  # My Method
-results = results.join(classify('Naive Bayes', 'BoW', full_dataset))  # My Method
+# results = results.join(classify('Naive Bayes', 'TF-IDF', full_dataset))  # My Method
+# results = results.join(classify('Naive Bayes', 'BoW', full_dataset))  # My Method
 
-# results.to_csv(path.join("data", "EvaluationMetric_10fold_comma.csv"), index=full_dataset)
+# results.to_csv(path.join("data", "EvaluationMetric_10fold_comma.csv"), index=False)
 # results.to_csv(path.join("data", "EvaluationMetric_10fold.csv"), index=False, sep='\t')
 
 # predictions = predict_categories()
 # predictions.to_csv(path.join("data", "testSet_categories_comma.csv"), index=False)
 # predictions.to_csv(path.join("data", "testSet_categories.csv"), index=False, sep='\t')
+
+# fine_tune('SVM', 'BoW', {
+#     # 'svm__kernel': ['linear', 'poly', 'rbf'],
+# })
+
+# fine_tune('Random Forest', 'BoW', {
+#     'random_forest__n_estimators': [50, 100, 200, 300],
+# })
+
+# fine_tune('SVM', 'SVD', {
+#   'svd__n_components': [10,50,150,250]
+# })
