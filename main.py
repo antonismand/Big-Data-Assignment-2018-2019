@@ -22,6 +22,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.model_selection import GridSearchCV
 from gridsearch_plot import GridSearch_table_plot
 import time, string
+import datetime
 
 df = pd.read_csv(path.join("data", "train_set.csv"), sep='\t')
 df_test = pd.read_csv(path.join("data", "test_set.csv"), sep='\t')
@@ -89,17 +90,17 @@ def get_scores(true_labels, predicted_labels, scores):
 def get_pipeline(classifier, method):
     pipe = []
     if method == 'D2V':
-        pipe.append(('d2v', D2VTransformer(workers=4)))
+        pipe.append(('d2v', D2VTransformer(window=1, workers=4)))
     elif method == 'BoW':
         pipe.append(('bow', CountVectorizer(stop_words='english')))
     elif method == 'SVD':
         pipe.append(('bow', CountVectorizer(stop_words='english')))
         pipe.append(('svd', TruncatedSVD(n_components=150)))
     else:
-        pipe.append(('tfidf', TfidfVectorizer(stop_words='english')))
+        pipe.append(('tfidf', TfidfVectorizer(stop_words='english', max_features=50000)))
 
     if classifier == "SVM":
-        pipe.append(('svm', svm.LinearSVC()))
+        pipe.append(('svm', svm.LinearSVC(max_iter=1000)))
     elif classifier == "Random Forest":
         pipe.append(('random_forest', RandomForestClassifier(n_estimators=200, n_jobs=-1)))
     else:
@@ -113,6 +114,8 @@ def classify(classifier, method, full=True):  # boolean full : to use the whole 
     X = df.Content if full else df.Content[0:2000]
     y = df.Category if full else df.Category[0:2000]
 
+    X = X.str.replace('[^\w\s]', '')  # remove punctuations
+
     scores = [0, 0, 0, 0]
     i = 0
 
@@ -120,7 +123,6 @@ def classify(classifier, method, full=True):  # boolean full : to use the whole 
     if method == 'D2V':
         X = [simple_preprocess(line) for line in X]
     # if method == 'TF-IDF':
-    # X = X.str.replace('[^\w\s]', '')  # remove punctuations
 
     clf = get_pipeline(classifier, method)
     for train_index, test_index in kf.split(X):
@@ -141,14 +143,14 @@ def classify(classifier, method, full=True):  # boolean full : to use the whole 
 
     scores = [x / 10 for x in scores]
     end = time.time()
-    print(end - start)
+    print(str(datetime.timedelta(seconds=end - start)))
     # scores.append(end - start)
     return pd.DataFrame({classifier + '(' + method + ')': scores})
 
 
 def fine_tune(classifier, method, param_grid):
-    X = df.Content[0:2000]
-    y = df.Category[0:2000]
+    X = df.Content
+    y = df.Category
 
     if method == 'D2V':
         X = [simple_preprocess(line) for line in X]
@@ -171,24 +173,24 @@ def predict_categories():
 # duplicates(0.7)
 results = pd.DataFrame({'Statistic Measure': ['Accuracy', 'Precision', 'Recall', 'F-Measure']})
 
-full_dataset = False
-# results = results.join(classify('SVM', 'BoW', full_dataset))
-# results = results.join(classify('Random Forest', 'BoW', full_dataset))
-# results = results.join(classify('SVM', 'SVD', full_dataset))
-# results = results.join(classify('Random Forest', 'SVD', full_dataset))
-# results = results.join(classify('SVM', 'D2V', full_dataset))
-# results = results.join(classify('Random Forest', 'D2V', full_dataset))
-#
-# results = results.join(classify('SVM', 'TF-IDF', full_dataset))  # My Method
+full_dataset = True
+results = results.join(classify('SVM', 'BoW', full_dataset))
+results = results.join(classify('Random Forest', 'BoW', full_dataset))
+results = results.join(classify('SVM', 'SVD', full_dataset))
+results = results.join(classify('Random Forest', 'SVD', full_dataset))
+results = results.join(classify('SVM', 'D2V', full_dataset))
+results = results.join(classify('Random Forest', 'D2V', full_dataset))
+
+results = results.join(classify('SVM', 'TF-IDF', full_dataset))  # My Method
 # results = results.join(classify('Naive Bayes', 'TF-IDF', full_dataset))  # My Method
 # results = results.join(classify('Naive Bayes', 'BoW', full_dataset))  # My Method
 
-# results.to_csv(path.join("data", "EvaluationMetric_10fold_comma.csv"), index=False)
-# results.to_csv(path.join("data", "EvaluationMetric_10fold.csv"), index=False, sep='\t')
+results.to_csv(path.join("data", "EvaluationMetric_10fold_comma.csv"), index=False)
+results.to_csv(path.join("data", "EvaluationMetric_10fold.csv"), index=False, sep='\t')
 
-# predictions = predict_categories()
-# predictions.to_csv(path.join("data", "testSet_categories_comma.csv"), index=False)
-# predictions.to_csv(path.join("data", "testSet_categories.csv"), index=False, sep='\t')
+predictions = predict_categories()
+predictions.to_csv(path.join("data", "testSet_categories_comma.csv"), index=False)
+predictions.to_csv(path.join("data", "testSet_categories.csv"), index=False, sep='\t')
 
 
 # fine_tune('Random Forest', 'BoW', {
@@ -200,7 +202,12 @@ full_dataset = False
 # })
 
 
-fine_tune('SVM', 'D2V', {
-    'd2v__window': [1, 2, 15],
-    'd2v__min_count': [1, 5]
-})
+# fine_tune('SVM', 'D2V', {
+#     'd2v__window': [1, 2],
+# })
+
+#
+# fine_tune('SVM', 'TF-IDF', {
+# 'svm__max_iter': [1000, 2000, 3000]
+#       'tfidf__max_features': [1000, 5000, 10000, 50000, 80000]
+# })

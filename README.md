@@ -8,13 +8,13 @@ Dictionary(81094 unique tokens: ['able', 'about', 'access', 'activities', 'actua
 
 | Classifier | Accuracy | Execution Time |
 | --- | --- | --- |
-| SVM BoW | 95.4% | 06:57 |
-| SVM SVD | 95.2% | 03:54 |
-| SVM D2V | 94.8% | 17:12 |
-| Random Forest BoW  | 94.7% | 05:28 |
-| Random Forest SVD | 94.8% | 06:17 |
-| Random Forest D2V | 94.2% | 20:04 |
-| SVM TF-IDF | 96.8% | 18:35 |
+| SVM BoW | 96% | 01:20 |
+| SVM SVD | 95.2% | 04:08 |
+| SVM D2V* | 94.8% | 17:12 |
+| Random Forest BoW  | 94.7% | 02:20 |
+| Random Forest SVD | 94.8% | 04:27 |
+| Random Forest D2V* | 94.2% | 20:04 |
+| SVM TF-IDF | 96.9% | 01:03 |
 
 ![Alt text](data/plots/business.png?raw=true)
 
