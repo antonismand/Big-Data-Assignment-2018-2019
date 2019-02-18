@@ -89,19 +89,19 @@ def get_scores(true_labels, predicted_labels, scores):
 def get_pipeline(classifier, method):
     pipe = []
     if method == 'D2V':
-        pipe.append(('d2v', D2VTransformer()))
+        pipe.append(('d2v', D2VTransformer(workers=4)))
     elif method == 'BoW':
         pipe.append(('bow', CountVectorizer(stop_words='english')))
     elif method == 'SVD':
         pipe.append(('bow', CountVectorizer(stop_words='english')))
         pipe.append(('svd', TruncatedSVD(n_components=150)))
     else:
-        pipe.append(('tfidf', TfidfVectorizer()))
+        pipe.append(('tfidf', TfidfVectorizer(stop_words='english')))
 
     if classifier == "SVM":
-        pipe.append(('svm', svm.SVC(kernel='linear')))
+        pipe.append(('svm', svm.LinearSVC()))
     elif classifier == "Random Forest":
-        pipe.append(('random_forest', RandomForestClassifier(n_estimators=200)))
+        pipe.append(('random_forest', RandomForestClassifier(n_estimators=200, n_jobs=-1)))
     else:
         pipe.append(('naive_bayes', MultinomialNB()))
     return Pipeline(pipe)
@@ -120,9 +120,7 @@ def classify(classifier, method, full=True):  # boolean full : to use the whole 
     if method == 'D2V':
         X = [simple_preprocess(line) for line in X]
     # if method == 'TF-IDF':
-        # X = [s.translate(None, string.punctuation) for s in X]
-        # for x in X:
-        #     print(x)
+    # X = X.str.replace('[^\w\s]', '')  # remove punctuations
 
     clf = get_pipeline(classifier, method)
     for train_index, test_index in kf.split(X):
@@ -173,15 +171,15 @@ def predict_categories():
 # duplicates(0.7)
 results = pd.DataFrame({'Statistic Measure': ['Accuracy', 'Precision', 'Recall', 'F-Measure']})
 
-full_dataset = True
+full_dataset = False
 # results = results.join(classify('SVM', 'BoW', full_dataset))
 # results = results.join(classify('Random Forest', 'BoW', full_dataset))
 # results = results.join(classify('SVM', 'SVD', full_dataset))
 # results = results.join(classify('Random Forest', 'SVD', full_dataset))
 # results = results.join(classify('SVM', 'D2V', full_dataset))
 # results = results.join(classify('Random Forest', 'D2V', full_dataset))
-# #
-results = results.join(classify('SVM', 'TF-IDF', full_dataset))  # My Method
+#
+# results = results.join(classify('SVM', 'TF-IDF', full_dataset))  # My Method
 # results = results.join(classify('Naive Bayes', 'TF-IDF', full_dataset))  # My Method
 # results = results.join(classify('Naive Bayes', 'BoW', full_dataset))  # My Method
 
@@ -192,9 +190,6 @@ results = results.join(classify('SVM', 'TF-IDF', full_dataset))  # My Method
 # predictions.to_csv(path.join("data", "testSet_categories_comma.csv"), index=False)
 # predictions.to_csv(path.join("data", "testSet_categories.csv"), index=False, sep='\t')
 
-# fine_tune('SVM', 'BoW', {
-#     # 'svm__kernel': ['linear', 'poly', 'rbf'],
-# })
 
 # fine_tune('Random Forest', 'BoW', {
 #     'random_forest__n_estimators': [50, 100, 200, 300],
@@ -203,3 +198,9 @@ results = results.join(classify('SVM', 'TF-IDF', full_dataset))  # My Method
 # fine_tune('SVM', 'SVD', {
 #   'svd__n_components': [10,50,150,250]
 # })
+
+
+fine_tune('SVM', 'D2V', {
+    'd2v__window': [1, 2, 15],
+    'd2v__min_count': [1, 5]
+})

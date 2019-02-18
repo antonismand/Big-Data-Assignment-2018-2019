@@ -14,7 +14,7 @@ Dictionary(81094 unique tokens: ['able', 'about', 'access', 'activities', 'actua
 | Random Forest BoW  | 94.7% | 05:28 |
 | Random Forest SVD | 94.8% | 06:17 |
 | Random Forest D2V | 94.2% | 20:04 |
-| SVM TF-IDF | 96.8% |  |
+| SVM TF-IDF | 96.8% | 18:35 |
 
 ![Alt text](data/plots/business.png?raw=true)
 
