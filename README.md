@@ -17,11 +17,7 @@ Dictionary(81094 unique tokens: ['able', 'about', 'access', 'activities', 'actua
 | SVM TF-IDF | 96.9% | 00:59 |
 
 ![Alt text](data/plots/business.png?raw=true)
-
 ![Alt text](data/plots/film.png?raw=true)
-
 ![Alt text](data/plots/football.png?raw=true)
-
 ![Alt text](data/plots/politics.png?raw=true)
-
 ![Alt text](data/plots/technology.png?raw=true)
